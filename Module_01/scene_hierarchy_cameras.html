@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene Hierarchy: Bola Mengikuti Kubus - Three.js</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: #333;
+            background-color: rgba(255,255,255,0.8);
+            padding: 5px;
+            font-family: Arial, sans-serif;
+            z-index: 100;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+</head>
+<body>
+<div id="info">Bola (anak) mengikuti gerakan Kubus (induk).</div>
+
+<script type="module">
+    import * as THREE from 'three';
+
+    // 1. Scene
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xe0e0e0); // Warna latar abu-abu terang
+
+    // Helper Sumbu Global (untuk referensi)
+    const globalAxesHelper = new THREE.AxesHelper(5); // Sumbu X merah, Y hijau, Z biru
+    scene.add(globalAxesHelper);
+
+    // 2. Camera
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(4, 5, 8); // Posisikan kamera agar terlihat jelas
+    camera.lookAt(0, 1, 0); // Arahkan kamera ke sekitar area kubus
+
+    // 3. Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // 4. Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(5, 10, 7);
+    scene.add(directionalLight);
+
+    // --- OBJEK dan HIERARCHY ---
+
+    // Kubus (Induk / Parent)
+    const cubeGeometry = new THREE.BoxGeometry(2, 2, 2); // Ukuran kubus 2x2x2
+    const cubeMaterial = new THREE.MeshStandardMaterial({
+        color: 0x2196F3, // Biru
+        roughness: 0.3,
+        metalness: 0.1
+    });
+    const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+    cube.position.set(0, 1, 0); // Posisikan kubus sedikit di atas bidang XZ
+    scene.add(cube); // Tambahkan kubus ke scene utama
+
+    // Helper Sumbu Lokal untuk Kubus (untuk melihat orientasi kubus)
+    const cubeAxesHelper = new THREE.AxesHelper(1.5); // Lebih kecil dari sumbu global
+    cube.add(cubeAxesHelper); // Tambahkan helper sumbu SEBAGAI ANAK DARI KUBUS
+
+    // Bola (Anak / Child dari Kubus)
+    const sphereGeometry = new THREE.SphereGeometry(0.7, 32, 32); // Radius bola 0.7
+    const sphereMaterial = new THREE.MeshStandardMaterial({
+        color: 0xFFC107, // Kuning Amber
+        roughness: 0.1,
+        metalness: 0.2
+    });
+    const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+
+    // Posisikan bola RELATIF TERHADAP KUBUS (induknya)
+    // Misalnya, bola berada 2 unit di atas pusat kubus pada sumbu Y lokal kubus
+    sphere.position.set(0, 2, 0); // x=0, y=2, z=0 relatif terhadap titik (0,0,0) kubus
+
+    // Jadikan bola sebagai anak dari kubus
+    cube.add(sphere);
+    // PENTING: Bola TIDAK ditambahkan langsung ke `scene`, tapi ke `cube`.
+
+    // (Opsional) Bola kecil lain sebagai anak dari bola pertama (cucu dari kubus)
+    const smallSphereGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+    const smallSphereMaterial = new THREE.MeshStandardMaterial({ color: 0x4CAF50 }); // Hijau
+    const smallSphere = new THREE.Mesh(smallSphereGeometry, smallSphereMaterial);
+    smallSphere.position.set(1, 0, 0); // 1 unit di sumbu X lokal dari bola induknya
+    sphere.add(smallSphere); // Jadikan bola kecil anak dari bola kuning
+
+
+    // 5. Animasi
+    let time = 0;
+    function animate() {
+        requestAnimationFrame(animate);
+        time += 0.01;
+
+        // Gerakkan dan Rotasi Kubus (Induk)
+        cube.rotation.x += 0.005;
+        cube.rotation.y += 0.01;
+
+        // Gerakkan posisi kubus (misalnya, melingkar di bidang XZ)
+        cube.position.x = Math.sin(time * 0.5) * 2;
+        cube.position.z = Math.cos(time * 0.5) * 2;
+        // cube.position.y = 1 + Math.abs(Math.sin(time * 0.8)); // Gerak naik turun
+
+        // Bola (anak) akan mengikuti secara otomatis karena hierarki.
+        // Kita bisa juga memberikan rotasi independen pada bola jika mau:
+        sphere.rotation.y += 0.02; // Bola berputar pada sumbu Y lokalnya sendiri
+
+        // Bola kecil (cucu) juga akan mengikuti bola kuning, dan juga kubus.
+        smallSphere.rotation.x += 0.03;
+
+        renderer.render(scene, camera);
+    }
+
+    // 6. Menangani perubahan ukuran window
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    window.addEventListener('resize', onWindowResize, false);
+
+    // Mulai animasi
+    animate();
+</script>
+
+</body>
+</html>
