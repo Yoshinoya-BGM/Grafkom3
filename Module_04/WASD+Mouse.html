@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js - FP Walkthrough (Smaller FOV, Original Objects)</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #333; }
+        canvas { display: block; }
+        #blocker {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #instructions {
+            width: 50%;
+            max-width: 400px;
+            font-family: sans-serif;
+            font-size: 18px;
+            text-align: center;
+            color: white;
+            background-color: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="blocker">
+        <div id="instructions">
+            <p style="font-size: 24px;">Klik untuk Bermain</p>
+            <p>
+                Gerak: WASD atau Tombol Panah<br/>
+                Lihat: Mouse<br/>
+                Keluar dari mode First Person: ESC
+            </p>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        let camera, scene, renderer, controls;
+        let cube, pyramid, sphere, floor;
+
+        // objects array tidak lagi terlalu dibutuhkan karena kita tidak punya banyak objek untuk collision sederhana
+        // let objects = [];
+
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+
+        let prevTime = performance.now();
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        const playerHeight = 1.7;
+        const moveSpeed = 30.0; // Kurangi sedikit kecepatan gerak agar sesuai dengan FOV yang lebih kecil
+
+        const textureUrl = '../texture.jpg'; // Atau '../textures/texture.jpg'
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x222222);
+            // Sesuaikan fog: mungkin mulai lebih jauh atau lebih tipis dengan FOV kecil
+            scene.fog = new THREE.Fog(0x222222, 20, 100);
+
+            // 1. Buat Perspektif Lebih Kecil (FOV lebih kecil)
+            const fov = 50; // Sebelumnya 75, coba nilai antara 45-60 untuk FOV lebih kecil
+            camera = new THREE.PerspectiveCamera(fov, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.y = playerHeight;
+            camera.position.z = 5; // Posisikan kamera sedikit mundur agar objek awal terlihat
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            controls = new PointerLockControls(camera, document.body);
+
+            const blocker = document.getElementById('blocker');
+            const instructions = document.getElementById('instructions');
+
+            instructions.addEventListener('click', function () {
+                controls.lock();
+            });
+
+            controls.addEventListener('lock', function () {
+                instructions.style.display = 'none';
+                blocker.style.display = 'none';
+            });
+
+            controls.addEventListener('unlock', function () {
+                blocker.style.display = 'flex';
+                instructions.style.display = '';
+            });
+
+            scene.add(controls.getObject());
+
+            const onKeyDown = function (event) {
+                switch (event.code) {
+                    case 'ArrowUp': case 'KeyW': moveForward = true; break;
+                    case 'ArrowLeft': case 'KeyA': moveLeft = true; break;
+                    case 'ArrowDown': case 'KeyS': moveBackward = true; break;
+                    case 'ArrowRight': case 'KeyD': moveRight = true; break;
+                }
+            };
+
+            const onKeyUp = function (event) {
+                switch (event.code) {
+                    case 'ArrowUp': case 'KeyW': moveForward = false; break;
+                    case 'ArrowLeft': case 'KeyA': moveLeft = false; break;
+                    case 'ArrowDown': case 'KeyS': moveBackward = false; break;
+                    case 'ArrowRight': case 'KeyD': moveRight = false; break;
+                }
+            };
+
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 15);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 100;
+            directionalLight.shadow.camera.left = -20;
+            directionalLight.shadow.camera.right = 20;
+            directionalLight.shadow.camera.top = 20;
+            directionalLight.shadow.camera.bottom = -20;
+            scene.add(directionalLight);
+
+            const textureLoader = new THREE.TextureLoader();
+            const uvTexture = textureLoader.load(
+                textureUrl,
+                (texture) => {
+                    console.log('Texture loaded:', textureUrl);
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                },
+                undefined,
+                (error) => {
+                    console.error('Error loading texture:', textureUrl, error);
+                    alert(`Gagal memuat tekstur dari: ${textureUrl}`);
+                }
+            );
+
+            const floorGeometry = new THREE.PlaneGeometry(50, 50); // Ukuran lantai bisa disesuaikan
+            const floorMaterial = new THREE.MeshPhongMaterial({ map: uvTexture, side: THREE.DoubleSide, shininess: 5 });
+            floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+            // objects.push(floor);
+
+            const cubeGeometry = new THREE.BoxGeometry(2, 2, 2);
+            const cubeMaterial = new THREE.MeshBasicMaterial({ map: uvTexture, color: 0xffffff });
+            cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            cube.position.set(-4, 1, -6); // Sesuaikan posisi objek agar terlihat dengan FOV baru
+            cube.castShadow = true;
+            scene.add(cube);
+            // objects.push(cube);
+
+            const pyramidGeometry = new THREE.ConeGeometry(1.5, 2.5, 4);
+            const pyramidMaterial = new THREE.MeshPhongMaterial({ map: uvTexture, color: 0xffffff, shininess: 40, specular: 0x444444 });
+            pyramid = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
+            pyramid.position.set(0, 1.25, -10); // Sesuaikan posisi objek
+            pyramid.castShadow = true;
+            pyramid.receiveShadow = true;
+            scene.add(pyramid);
+            // objects.push(pyramid);
+
+            const sphereGeometry = new THREE.SphereGeometry(1.2, 32, 32);
+            const sphereMaterial = new THREE.MeshPhongMaterial({ map: uvTexture, color: 0xffffff, shininess: 80, specular: 0x666666 });
+            sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            sphere.position.set(4, 1.2, -7); // Sesuaikan posisi objek
+            sphere.castShadow = true;
+            sphere.receiveShadow = true;
+            scene.add(sphere);
+            // objects.push(sphere);
+
+            // 2. Menghilangkan blok tambahan yang dibuat secara acak
+            // Loop untuk objek tambahan dihapus
+
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix(); // Penting setelah mengubah FOV atau aspek rasio
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = performance.now();
+
+            if (controls.isLocked === true) {
+                const delta = (time - prevTime) / 1000;
+
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+
+                if (moveForward || moveBackward) velocity.z -= direction.z * moveSpeed * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * moveSpeed * delta;
+
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+            }
+
+            prevTime = time;
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>

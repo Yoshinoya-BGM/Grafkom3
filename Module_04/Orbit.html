@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js - Inter-Object Orbit, Shadow</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #333; }
+        canvas { display: block; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let scene, camera, renderer, controls;
+        let cube, pyramid, sphere, floor;
+        let spherePivot, pyramidPivot; // Pivot objects for orbiting
+
+        const textureUrl = '../texture.jpg'; // Atau '../textures/texture.jpg'
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x222222);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            // Mundurkan kamera sedikit agar bisa melihat sistem orbit lebih baik
+            camera.position.set(0, 8, 15);
+            camera.lookAt(0, 1, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 3;
+            controls.maxDistance = 50; // Tingkatkan max distance
+            controls.target.set(0, 1, 0); // Pastikan target orbit controls sesuai
+            // controls.maxPolarAngle = Math.PI / 2 - 0.05; // Komentari jika ingin bisa lihat dari bawah
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); // Tingkatkan sedikit intensitas
+            directionalLight.position.set(10, 20, 15); // Ubah posisi cahaya untuk bayangan yang lebih baik
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 100; // Tingkatkan far plane shadow camera
+            directionalLight.shadow.camera.left = -20; // Sesuaikan frustum shadow
+            directionalLight.shadow.camera.right = 20;
+            directionalLight.shadow.camera.top = 20;
+            directionalLight.shadow.camera.bottom = -20;
+            scene.add(directionalLight);
+            // const shadowCamHelper = new THREE.CameraHelper(directionalLight.shadow.camera);
+            // scene.add(shadowCamHelper);
+
+
+            const textureLoader = new THREE.TextureLoader();
+            const uvTexture = textureLoader.load(
+                textureUrl,
+                (texture) => {
+                    console.log('Texture loaded:', textureUrl);
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                },
+                undefined,
+                (error) => {
+                    console.error('Error loading texture:', textureUrl, error);
+                    alert(`Gagal memuat tekstur dari: ${textureUrl}`);
+                }
+            );
+
+            // Lantai
+            const floorGeometry = new THREE.PlaneGeometry(40, 40); // Perbesar lantai
+            const floorMaterial = new THREE.MeshPhongMaterial({ map: uvTexture, side: THREE.DoubleSide, shininess: 5 });
+            floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = -0.5; // Turunkan sedikit lantai
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // --- Kubus (Pusat, sedikit offset dari origin scene) ---
+            const cubeGeometry = new THREE.BoxGeometry(2, 2, 2);
+            const cubeMaterial = new THREE.MeshBasicMaterial({ map: uvTexture, color: 0xffffff });
+            cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            cube.position.set(0, 1.5, 0); // Posisi kubus di scene
+            cube.castShadow = true;
+            scene.add(cube); // Tambahkan kubus langsung ke scene
+
+            // --- Bola (Mengorbit Kubus) ---
+            // 1. Buat pivot untuk bola
+            spherePivot = new THREE.Group();
+            cube.add(spherePivot); // SpherePivot adalah child dari Kubus, jadi ia akan bergerak jika kubus bergerak
+
+            // 2. Buat bola dan tambahkan ke pivotnya
+            const sphereGeometry = new THREE.SphereGeometry(1.2, 32, 32);
+            const sphereMaterial = new THREE.MeshPhongMaterial({ map: uvTexture, color: 0xffffff, shininess: 80, specular: 0x666666 });
+            sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            sphere.position.x = 5; // Jarak bola dari kubus (pivotnya)
+            sphere.castShadow = true;
+            sphere.receiveShadow = true;
+            spherePivot.add(sphere); // Tambahkan bola ke spherePivot
+
+            // --- Limas (Mengorbit Bola) ---
+            // 1. Buat pivot untuk limas
+            pyramidPivot = new THREE.Group();
+            sphere.add(pyramidPivot); // PyramidPivot adalah child dari Bola
+
+            // 2. Buat limas dan tambahkan ke pivotnya
+            const pyramidGeometry = new THREE.ConeGeometry(0.8, 1.5, 4); // Perkecil sedikit limas
+            const pyramidMaterial = new THREE.MeshPhongMaterial({ map: uvTexture, color: 0xffffff, shininess: 40, specular: 0x444444 });
+            pyramid = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
+            pyramid.position.x = 2.5; // Jarak limas dari bola (pivotnya)
+            pyramid.castShadow = true;
+            pyramid.receiveShadow = true;
+            pyramidPivot.add(pyramid); // Tambahkan limas ke pyramidPivot
+
+            window.addEventListener('resize', onWindowResize, false);
+            animate();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = Date.now() * 0.0001; // Faktor waktu untuk kecepatan orbit
+
+            // Orbit Bola mengelilingi Kubus
+            if (spherePivot) {
+                spherePivot.rotation.y = time * 5; // Kecepatan orbit bola
+            }
+
+            // Orbit Limas mengelilingi Bola
+            if (pyramidPivot) {
+                pyramidPivot.rotation.y = time * 10; // Kecepatan orbit limas (lebih cepat)
+            }
+
+            // Rotasi pada sumbu sendiri (opsional)
+            if (cube) cube.rotation.y += 0.002;
+            if (sphere) sphere.rotation.y += 0.005;
+            if (pyramid) pyramid.rotation.y -= 0.008;
+
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
