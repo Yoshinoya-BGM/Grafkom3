@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Three.js - Camera Orbit (Auto & User), Static Objects, No Floor</title>
+    <title>Three.js - User Orbit, Static Objects, No Floor, Texture</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #1a1a1a; }
         canvas { display: block; }
@@ -26,17 +26,20 @@
         let scene, camera, renderer, controls;
         let cube, pyramid, sphere;
 
-        let cameraPivot;
-        let autoOrbitSpeed = 0.005;
-        let userInteracting = false;
+        // Variabel untuk orbit otomatis dihilangkan:
+        // let cameraPivot;
+        // let autoOrbitSpeed = 0.005;
+        // let userInteracting = false;
 
         const textureUrl = '../texture.jpg'; // Pastikan path ini benar
 
         const loadingManager = new THREE.LoadingManager();
         loadingManager.onLoad = function () {
             console.log('Loading complete!');
-            if (cube) {
-                setupCameraOrbit();
+            // Tidak perlu setupCameraOrbit lagi jika tidak ada orbit otomatis kompleks
+            if (cube && controls) {
+                 controls.target.copy(cube.position); // Pastikan target diatur setelah cube ada
+                 controls.update();
             }
             animate(); // Mulai animasi setelah semua aset dimuat
         };
@@ -48,11 +51,12 @@
             scene.background = new THREE.Color(0x1a1a1a);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            // Posisi awal kamera akan diatur oleh setupCameraOrbit
+            // Atur posisi kamera awal yang baik untuk melihat kubus sebagai target
+            camera.position.set(0, 3, 8); // Sesuaikan posisi awal kamera
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true; // Objek bisa saling melempar bayangan
+            renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
@@ -61,10 +65,13 @@
             controls.dampingFactor = 0.05;
             controls.minDistance = 3;
             controls.maxDistance = 30;
-            // Target akan diatur di setupCameraOrbit
+            // Target akan diatur ke posisi kubus setelah kubus diinisialisasi
+            // Jika kubus ada di (0,1,0), kita bisa set target awal:
+            // controls.target.set(0, 1, 0); // Akan di-override jika cube.position berbeda
 
-            controls.addEventListener('start', () => { userInteracting = true; });
-            controls.addEventListener('end', () => { userInteracting = false; });
+            // Event listener untuk userInteracting tidak diperlukan lagi
+            // controls.addEventListener('start', () => { userInteracting = true; });
+            // controls.addEventListener('end', () => { userInteracting = false; });
 
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
@@ -74,7 +81,6 @@
             directionalLight.castShadow = true;
             directionalLight.shadow.mapSize.width = 2048;
             directionalLight.shadow.mapSize.height = 2048;
-            // ... (konfigurasi shadow lainnya)
             directionalLight.shadow.camera.near = 0.5;
             directionalLight.shadow.camera.far = 50;
             directionalLight.shadow.camera.left = -15;
@@ -92,13 +98,20 @@
                 }
             );
 
-            // Kubus (Pusat orbit kamera)
+            // Kubus (Akan menjadi target orbit)
             const cubeGeometry = new THREE.BoxGeometry(2, 2, 2);
             const cubeMaterial = new THREE.MeshBasicMaterial({ map: uvTexture, color: 0xffffff });
             cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-            cube.position.set(0, 1, 0); // Pusat scene
+            cube.position.set(0, 1, 0); // Pusat scene, atau posisi target yang diinginkan
             cube.castShadow = true;
             scene.add(cube);
+
+            // Atur target OrbitControls ke posisi kubus setelah kubus dibuat
+            // (juga dilakukan di loadingManager.onLoad untuk memastikan)
+            if (controls && cube) {
+                controls.target.copy(cube.position);
+            }
+
 
             // Limas
             const pyramidGeometry = new THREE.ConeGeometry(1.5, 2.5, 4);
@@ -121,22 +134,12 @@
             window.addEventListener('resize', onWindowResize, false);
         }
 
+        // Fungsi setupCameraOrbit() tidak diperlukan lagi
+        /*
         function setupCameraOrbit() {
-            if (!cube) return;
-
-            cameraPivot = new THREE.Group();
-            cameraPivot.position.copy(cube.position);
-            scene.add(cameraPivot);
-
-            // Atur posisi kamera relatif terhadap pivot (jarak orbit awal)
-            // Misalnya, sedikit lebih tinggi dan mundur dari kubus
-            camera.position.set(0, 2.5, 8);
-            cameraPivot.add(camera); // Kamera menjadi child dari pivot
-
-            // Atur target OrbitControls ke posisi kubus
-            controls.target.copy(cube.position);
-            controls.update();
+            // ...
         }
+        */
 
         function onWindowResize() {
             if (!camera || !renderer) return;
@@ -148,17 +151,14 @@
         function animate() {
             requestAnimationFrame(animate);
 
+            // Blok untuk orbit otomatis dihilangkan:
+            /*
             if (!userInteracting && cameraPivot) {
-                // Orbit otomatis kamera jika pengguna tidak berinteraksi
                 cameraPivot.rotation.y += autoOrbitSpeed;
             }
+            */
 
-            // Pastikan tidak ada rotasi objek di sini:
-            // if (cube) cube.rotation.y += 0.01; // <- INI DIHILANGKAN
-            // if (pyramid) pyramid.rotation.y += 0.01; // <- INI DIHILANGKAN
-            // if (sphere) sphere.rotation.y += 0.01; // <- INI DIHILANGKAN
-
-            if (controls) controls.update(); // Update OrbitControls (penting untuk damping dll)
+            if (controls) controls.update(); // Selalu update OrbitControls
 
             if (renderer && scene && camera) {
                 renderer.render(scene, camera);
